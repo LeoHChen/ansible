@@ -47,7 +47,7 @@
       comment: "Haodi Jiang"
     - username: "lj"
       groups: "adm,wheel"
-      comment: "Jiang Li"
+      comment: "Li Jiang"
     - username: "nw"
       groups: "adm,wheel"
       comment: "Nick White"
@@ -57,6 +57,9 @@
     - username: "yx"
       groups: "adm,wheel"
       comment: "Jacky Wang"
+    - username: "yy"
+      groups: "adm,wheel"
+      comment: "Yuriy Potvik"
     remove_users:
     - "foo"
     - "cf"
