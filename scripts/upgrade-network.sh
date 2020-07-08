@@ -7,10 +7,11 @@ function usage() {
 Usage: $ME [options] [actions]
 
 Options:
-   -s stride         stride for rolling upgrade (default: $stride)
+   -s stride         stride for rolling upgrade (default: $STRIDE)
    -n network        select network for action (valid: mainnet,lrtn,stn)
    -S shard          select shard for action
    -i list_of_ip     list of IP (delimiter is ,)
+   -r release        release version for release (default: $RELEASE)
 
 Actions:
    rolling           do rolling upgrade
@@ -33,30 +34,77 @@ function network_menu() {
       "LRTN" "Long Running Test Net" \
       "STN" "P2P Stress Test Net" 3>&1 1>&2 2>&3)
 
-   echo "$network"
+   if [ -n "$network" ]; then
+      echo "$network"
+   else
+      echo "Exit"
+   fi
 }
 
 function action_menu() {
    local network=$1
 
-   local action=$(whiptail --title "Network: $network" --radiolist \
-      "Choose an operation" 20 78 4 \
-      "Rolling" "Rolling Upgrade" OFF \
-      "Restart" "Restart The Shard" OFF \
-      "Update" "Force Update" OFF \
-      "Exit" "Exit the Menu" ON 3>&1 1>&2 2>&3)
+   local action=$(whiptail --title "Network: $network" --menu \
+      "Choose an operation" 25 78 16 \
+      "Back" "Return to previous Menu" \
+      "Rolling" "Rolling Upgrade" \
+      "Restart" "Restart The Shard" \
+      "Update" "Force Update" \
+      "Exit" "Exit the Menu" 3>&1 1>&2 2>&3)
 
-   echo "$action"
+   if [ -n "$action" ]; then
+      echo "$action"
+   else
+      echo "Exit"
+   fi
 }
 
 function input_ip_box() {
-   local network=$1
+   local title=$1
+   local init=$2
 
-   local ip=$(whiptail --title "Network: $network" --inputbox \
-      "A list of IP addresses, delimited by ," 8 78 \
-      3>&1 1>&2 2>&3)
+   local ip=$(whiptail --title "$title" --inputbox \
+      "A list of IP addresses, delimited by ','" 8 78 \
+      "$init" 3>&1 1>&2 2>&3)
 
-   echo "$ip"
+   if [ -n "$ip" ]; then
+      echo "$ip"
+   else
+      echo "Exit"
+   fi
+}
+
+# https://www.linuxjournal.com/content/validating-ip-address-bash-script
+function valid_ip()
+{
+    local  ip=$1
+    local  stat=1
+
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        OIFS=$IFS
+        IFS='.'
+        ip=($ip)
+        IFS=$OIFS
+        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
+            && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+        stat=$?
+    fi
+    return $stat
+}
+
+function validate_ip_addresses() {
+   OIFS=$IFS
+   IFS=','
+   read -a iparr <<< "$1"
+   IFS=$OIFS
+
+   for (( n=0; n < ${#iparr[*]}; n++ )); do
+      if ! valid_ip "${iparr[$n]}"; then
+         return 1
+      fi
+   done
+
+   return 0
 }
 
 function mainnet_shard_menu() {
@@ -73,10 +121,14 @@ function mainnet_shard_menu() {
       "s1_canary" "shard 1 canary nodes" OFF \
       "s2_canary" "shard 2 canary nodes" OFF \
       "s3_canary" "shard 3 canary nodes" OFF \
-      "canary" "all canary nodes" OFF \
+      "canary" "all canary nodes" ON \
       "ip" "manual input IP addresses" OFF 3>&1 1>&2 2>&3)
 
-   echo "$shard"
+   if [ -n "$shard" ]; then
+      echo "$shard"
+   else
+      echo "Exit"
+   fi
 }
 
 function lrtn_shard_menu() {
@@ -88,9 +140,14 @@ function lrtn_shard_menu() {
       "lrtns1" "shard 1" OFF \
       "lrtns2" "shard 2" OFF \
       "lrtns3" "shard 3" OFF \
+      "lrtn" "all shards" ON \
       "ip" "manual input IP addresses" OFF 3>&1 1>&2 2>&3)
 
-    echo "$shard"
+   if [ -n "$shard" ]; then
+      echo "$shard"
+   else
+      echo "Exit"
+   fi
 }
 
 function stn_shard_menu() {
@@ -99,10 +156,42 @@ function stn_shard_menu() {
    local shard=$(whiptail --title "Network: $network" --radiolist \
       "Choose one/all shards" 20 78 6 \
       "p2ps0" "shard 0" OFF \
-      "p2ps1" "shard 1" OFF
+      "p2ps1" "shard 1" OFF \
+      "p2p" "all shards" ON \
       "ip" "manual input IP addresses" OFF 3>&1 1>&2 2>&3)
 
-   echo "$shard"
+   if [ -n "$shard" ]; then
+      echo "$shard"
+   else
+      echo "Exit"
+   fi
+}
+
+function input_release_box() {
+   local network=$1
+
+   local rel=$(whiptail --title "Network: $network" --inputbox \
+      "Input the release bucket" 8 78 \
+      3>&1 1>&2 2>&3)
+
+   echo "$rel"
+}
+
+function release_menu() {
+   local network=$1
+
+   local release=$(whiptail --title "Network: $network" --radiolist \
+      "Choose release bucket" 20 78 6 \
+      "upgrade" "upgrade" ON \
+      "main" "main" OFF \
+      "canary" "canary" OFF \
+      "input" "manual input release bucket" OFF 3>&1 1>&2 2>&3)
+
+   if [ "${release}" = "input" ]; then
+      release=$(input_release_box "$network")
+   fi
+
+   echo "$release"
 }
 
 function do_rolling_upgrade() {
@@ -110,7 +199,7 @@ function do_rolling_upgrade() {
    local shard=$2
    local ip=$3
    echo "${net}/$shard/$ip"
-   ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f 2 -e "inventory=${shard} stride=2 upgrade=${release}"
+   ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f $STRIDE -e "inventory=${shard} stride=${STRIDE} upgrade=${RELEASE}"
 }
 
 function do_restart_shard() {
@@ -128,14 +217,16 @@ function do_force_update() {
 }
 
 ####### default value ######
-stride=2
+STRIDE=2
+RELEASE=upgrade
 
-while getopts ":s:S:n:i:" opt; do
+while getopts ":s:S:n:i:r:" opt; do
    case ${opt} in
-      s) stride=${OPTARG} ;;
+      s) STRIDE=${OPTARG} ;;
       S) shard=${OPTARG} ;;
       n) net=${OPTARG} ;;
       i) ip=${OPTARG} ;;
+      r) RELEASE=${OPTARG} ;;
       *) usage ;;
    esac
 done
@@ -147,6 +238,7 @@ shift
 
 case $action in
    rolling)
+      release_menu "$net"
       do_rolling_upgrade "$net" "$shard" "$ip"
       exit 0
       ;;
@@ -155,6 +247,7 @@ case $action in
       exit 0
       ;;
    update)
+      release_menu "$net"
       do_force_update "$net" "$shard" "$ip"
       exit 0
       ;;
@@ -167,33 +260,54 @@ esac
 ### menu ###
 unset net action ip
 
-net=$(network_menu)
-action=$(action_menu "$net")
-case $action in
-   Exit) exit ;;
-esac
+while true; do
+   net=$(network_menu)
+   case $net in
+      Exit) exit 0 ;;
+   esac
+   action=$(action_menu "$net")
+   case $action in
+      Exit) exit 0 ;;
+      Back) continue ;;
+      *) break ;;
+   esac
+done
 
 case ${net} in
    MAIN)
-      shard=$(mainnet_shard_menu "$net")
-      ;;
+      shard=$(mainnet_shard_menu "$net") ;;
    LRTN)
-      shard=$(lrtn_shard_menu "$net")
-      ;;
+      shard=$(lrtn_shard_menu "$net") ;;
    STN)
-      shard=$(stn_shard_menu "$net")
-      ;;
+      shard=$(stn_shard_menu "$net") ;;
 esac
 
 case ${shard} in
-   ip) ip=$(input_ip_box "$net")
-   ;;
+   Exit) exit 0 ;;
+   ip) 
+      ip=$(input_ip_box "Please Input IP addresses.")
+      while true; do
+         case $ip in
+            Exit) exit 0 ;;
+         esac
+         if validate_ip_addresses "$ip"; then
+            break
+         else
+            ip=$(input_ip_box "Invalid IP address(es)." "$ip")
+         fi
+      done
+      ;;
 esac
 
 case $action in
-   Rolling) do_rolling_upgrade "$net" "$shard" "$ip" ;;
-   Restart) do_restart_shard "$net" "$shard" "$ip" ;;
-   Update) do_force_update "$net" "$shard" "$ip" ;;
+   Rolling) 
+      release_menu "$net"
+      do_rolling_upgrade "$net" "$shard" "$ip" ;;
+   Restart)
+      do_restart_shard "$net" "$shard" "$ip" ;;
+   Update)
+      release_menu "$net"
+      do_force_update "$net" "$shard" "$ip" ;;
    *) exit ;;
 esac
 
