@@ -9,10 +9,9 @@ Usage: $ME [options] [actions]
 Options:
    -s stride         stride for rolling upgrade (default: $STRIDE)
    -b batch          batch of nodes for restart (default: $BATCH)
-   -n network        select network for action (valid: mainnet,lrtn,stn)
    -S shard          select shard for action
    -i list_of_ip     list of IP (delimiter is ,)
-   -r release        release version for release (default: $RELEASE)
+   -r release        release version for release (default: $release)
 
 Actions:
    rolling           do rolling upgrade
@@ -21,7 +20,7 @@ Actions:
    menu              bring up menu to do operation (default)
 
 Examples:
-   $ME -s 3 -n mainnet rolling
+   $ME -s 3 -S canary rolling
    $ME -i 1.2.3.4,2.3.4.5 update
 
 EOT
@@ -48,9 +47,9 @@ function action_menu() {
    local action=$(whiptail --title "Network: $network" --menu \
       "Choose an operation" 25 78 16 \
       "Back" "Return to previous Menu" \
-      "Rolling" "Rolling Upgrade" \
-      "Restart" "Restart The Shard" \
-      "Update" "Force Update" \
+      "rolling" "Rolling Upgrade" \
+      "restart" "Restart The Shard" \
+      "update" "Force Update" \
       "Exit" "Exit the Menu" 3>&1 1>&2 2>&3)
 
    if [ -n "$action" ]; then
@@ -207,34 +206,87 @@ function do_rolling_upgrade() {
    local inv=$1
    local release=$2
 
-   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
+   ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
    whiptail --title "Notice" --msgbox "The leader won't be upgraded automatically. Please upgrade leader with force update" 8 78
 }
 
 function do_restart_shard() {
    local inv=$1
-   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} skip_consensus_check=true"
+   ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} skip_consensus_check=true"
 }
 
 function do_force_update() {
    local inv=$1
    local release=$2
 
-   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
+   ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
+}
+
+function do_menu() {
+   whiptail --title "Network Operation" --msgbox "Welcome to operation on Harmony Network!" 8 78
+
+   while true; do
+      net=$(network_menu)
+      case $net in
+         Exit) exit 0 ;;
+      esac
+      action=$(action_menu "$net")
+      case $action in
+         Exit) exit 0 ;;
+         Back) continue ;;
+         *) break ;;
+      esac
+   done
+
+   case ${net} in
+      MAIN)
+         shard=$(mainnet_shard_menu "$net") ;;
+      LRTN)
+         shard=$(lrtn_shard_menu "$net") ;;
+      STN)
+         shard=$(stn_shard_menu "$net") ;;
+   esac
+
+   case ${shard} in
+      Exit) exit 0 ;;
+      ip) 
+         ip=$(input_ip_box "Please Input IP addresses.")
+         while true; do
+            case $ip in
+               Exit) exit 0 ;;
+            esac
+            ip=$(echo "$ip" | tr -d ' ')
+            if validate_ip_addresses "$ip"; then
+               break
+            else
+               ip=$(input_ip_box "Invalid IP address(es)." "$ip")
+            fi
+         done
+         ;;
+      *) ip="" ;;
+   esac
+
+# for rolling update or force update, get the release bucket info
+   case $action in
+      rolling|update) 
+         release=$(release_menu "Network: $net") ;;
+   esac
 }
 
 ####### default value ######
 STRIDE=2
 BATCH=60
-RELEASE=upgrade
+release=upgrade
 
-while getopts ":s:S:n:i:r:b:" opt; do
+declare IPARR
+unset action ip
+
+while getopts ":s:S:i:r:b:" opt; do
    case ${opt} in
       s) STRIDE=${OPTARG} ;;
       S) shard=${OPTARG} ;;
-      n) net=${OPTARG} ;;
       i) ip=${OPTARG} ;;
-      r) RELEASE=${OPTARG} ;;
+      r) release=${OPTARG} ;;
       b) BATCH=${OPTARG} ;;
       *) usage ;;
    esac
@@ -246,88 +298,30 @@ action=${1:-menu}
 shift
 
 case $action in
-   rolling)
-      do_rolling_upgrade "$shard" "$RELEASE" "$ip"
-      exit 0
-      ;;
-   restart)
-      do_restart_shard "$shard" "$ip"
-      exit 0
-      ;;
-   update)
-      do_force_update "$shard" "$RELEASE" "$ip"
-      exit 0
-      ;;
-   menu)
-      whiptail --title "Network Operation" --msgbox "Welcome to operation on Harmony Network!" 8 78
-      ;;
+   rolling|restart|update) ;;
+   menu) do_menu ;;
    *) usage ;;
 esac
 
-### menu ###
-unset net action ip
-
-while true; do
-   net=$(network_menu)
-   case $net in
-      Exit) exit 0 ;;
-   esac
-   action=$(action_menu "$net")
-   case $action in
-      Exit) exit 0 ;;
-      Back) continue ;;
-      *) break ;;
-   esac
-done
-
-case ${net} in
-   MAIN)
-      shard=$(mainnet_shard_menu "$net") ;;
-   LRTN)
-      shard=$(lrtn_shard_menu "$net") ;;
-   STN)
-      shard=$(stn_shard_menu "$net") ;;
-esac
-
-case ${shard} in
-   Exit) exit 0 ;;
-   ip) 
-      ip=$(input_ip_box "Please Input IP addresses.")
-      while true; do
-         case $ip in
-            Exit) exit 0 ;;
-         esac
-         ip=$(echo "$ip" | tr -d ' ')
-         if validate_ip_addresses "$ip"; then
-            break
-         else
-            ip=$(input_ip_box "Invalid IP address(es)." "$ip")
-         fi
-      done
-      ;;
-   *) ip="" ;;
-esac
-
-# for rolling update or force update, get the release bucket info
-case $action in
-   Rolling|Update) 
-      release=$(release_menu "Network: $net") ;;
-esac
-
-if [ -z $ip ]; then
+if [ -z "$ip" ]; then
    IPARR=( $shard )
+else
+   if ! validate_ip_addresses "$ip"; then
+      echo "Invalid IP addresses: $ip"
+      exit 1
+   fi
 fi
-
+ 
 # do action per ip or per group
 for (( n=0; n < ${#IPARR[*]}; n++ )); do
    case $action in
-      Rolling)
+      rolling)
          do_rolling_upgrade "${IPARR[$n]}" "$release" ;;
-      Restart)
+      restart)
          do_restart_shard "${IPARR[$n]}" ;;
-      Update)
+      update)
          do_force_update "${IPARR[$n]}" "$release" ;;
       *)
-         exit 0
+         exit 0 ;;
    esac
 done
