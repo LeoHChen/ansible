@@ -178,20 +178,27 @@ function input_release_box() {
 }
 
 function release_menu() {
-   local network=$1
+   local title=$1
+   local menu_tmp=/tmp/$(mktemp menu.XXXX)
 
-   local release=$(whiptail --title "Network: $network" --radiolist \
-      "Choose release bucket" 20 78 6 \
-      "upgrade" "upgrade" ON \
-      "main" "main" OFF \
-      "canary" "canary" OFF \
-      "input" "manual input release bucket" OFF 3>&1 1>&2 2>&3)
+   # assume the host has permission to list s3 bucket
+   aws s3 ls s3://pub.harmony.one/release/linux-x86_64/ | grep PRE | grep -v 'PRE v' | awk ' { print $2 } ' | sed 's,\(.*\)/,\1 \1,' | tr '\n' ' ' > $menu_tmp
 
-   if [ "${release}" = "input" ]; then
-      release=$(input_release_box "$network")
-   fi
+   readarray -t menus < $menu_tmp
 
-   echo "$release"
+   local release
+   while [ -z "$release" ]; do
+      release=$(whiptail --title "$title" --menu \
+         "Choose release bucket on s3://pub.harmony.one/release/linux-x86_64/" 30 78 20 \
+         ${menus[@]} \
+         "input" "manual input release bucket" 3>&1 1>&2 2>&3)
+
+      case $release in
+         input) release=$(input_release_box "$network") ;;
+      esac
+   done
+
+   echo "release: $release"
 }
 
 function do_rolling_upgrade() {
@@ -238,7 +245,7 @@ shift
 
 case $action in
    rolling)
-      release_menu "$net"
+      release_menu "Network: $net"
       do_rolling_upgrade "$net" "$shard" "$ip"
       exit 0
       ;;
@@ -247,7 +254,7 @@ case $action in
       exit 0
       ;;
    update)
-      release_menu "$net"
+      release_menu "Network: $net"
       do_force_update "$net" "$shard" "$ip"
       exit 0
       ;;
@@ -301,12 +308,12 @@ esac
 
 case $action in
    Rolling) 
-      release_menu "$net"
+      release_menu "Network: $net"
       do_rolling_upgrade "$net" "$shard" "$ip" ;;
    Restart)
       do_restart_shard "$net" "$shard" "$ip" ;;
    Update)
-      release_menu "$net"
+      release_menu "Network: $net"
       do_force_update "$net" "$shard" "$ip" ;;
    *) exit ;;
 esac
