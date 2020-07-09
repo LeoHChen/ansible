@@ -2,6 +2,33 @@
 
 ME=$(basename "$0")
 
+# NOTE: the ansible groups are defined in /etc/ansible/hosts inventory file
+# It has to be changed accordingly
+declare -A MAIN
+MAIN[all]="all mainnet nodes"
+MAIN[s0]="all nodes in mainnet shard 0"
+MAIN[s1]="all nodes in mainnet shard 1"
+MAIN[s2]="all nodes in mainnet shard 2"
+MAIN[s3]="all nodes in mainnet shard 3"
+MAIN[s0_canary]="canary nodes in mainnet shard 0"
+MAIN[s1_canary]="canary nodes in mainnet shard 1"
+MAIN[s2_canary]="canary nodes in mainnet shard 2"
+MAIN[s3_canary]="canary nodes in mainnet shard 3"
+MAIN[canary]="all canary nodes in mainnet"
+
+declare -A LRTN
+LRTN[lrtn]="all LRTN nodes"
+LRTN[lrtns0]="all nodes in LRTN shard 0"
+LRTN[lrtns1]="all nodes in LRTN shard 1"
+LRTN[lrtns2]="all nodes in LRTN shard 2"
+LRTN[lrtns3]="all nodes in LRTN shard 3"
+
+declare -A STN
+STN[p2p]="all STN nodes"
+STN[p2ps0]="all nodes in STN shard 0"
+STN[p2ps1]="all nodes in STN shard 1"
+
+######################## Functions ##########################
 function usage() {
    cat<<-EOT
 Usage: $ME [options] [actions]
@@ -63,15 +90,17 @@ function input_ip_box() {
    local title=$1
    local init=$2
 
-   local ip=$(whiptail --title "$title" --inputbox \
+   ip=$(whiptail --title "$title" --inputbox \
       "A list of IP addresses, delimited by ','" 8 78 \
       "$init" 3>&1 1>&2 2>&3)
 
-   if [ -n "$ip" ]; then
-      echo "$ip"
+   exitstatus=$?
+   if [ $exitstatus = 1 ]; then
+      echo Exit
    else
-      echo "Exit"
+      echo "$ip"
    fi
+
 }
 
 # https://www.linuxjournal.com/content/validating-ip-address-bash-script
@@ -93,6 +122,10 @@ function valid_ip()
 }
 
 function validate_ip_addresses() {
+   if [ -z "$1" ]; then
+      return 1
+   fi
+
    OIFS=$IFS
    IFS=','
    read -a IPARR <<< "$1"
@@ -107,58 +140,33 @@ function validate_ip_addresses() {
    return 0
 }
 
-function mainnet_shard_menu() {
-   local network=$1
+function shard_menu() {
+   local net=$1
+   local menu=""
+   OIFS="$IFS"
+   IFS='/'
 
-   local shard=$(whiptail --title "Network: $network" --radiolist \
-      "Choose one/all shards" 20 78 12 \
-      "s0" "shard 0 nodes" OFF \
-      "s1" "shard 1 nodes" OFF \
-      "s2" "shard 2 nodes" OFF \
-      "s3" "shard 3 nodes" OFF \
-      "all" "all nodes" OFF \
-      "s0_canary" "shard 0 canary nodes" OFF \
-      "s1_canary" "shard 1 canary nodes" OFF \
-      "s2_canary" "shard 2 canary nodes" OFF \
-      "s3_canary" "shard 3 canary nodes" OFF \
-      "canary" "all canary nodes" ON \
-      "ip" "manual input IP addresses" OFF 3>&1 1>&2 2>&3)
+   case ${net} in
+      MAIN)
+         for i in ${!MAIN[@]}; do
+            menu+="$i/${MAIN[$i]}/OFF/"
+         done ;;
+      LRTN)
+         for i in ${!LRTN[@]}; do
+            menu+="$i/${LRTN[$i]}/OFF/"
+         done ;;
+      STN)
+         for i in ${!STN[@]}; do
+            menu+="$i/${STN[$i]}/OFF/"
+         done ;;
+   esac
 
-   if [ -n "$shard" ]; then
-      echo "$shard"
-   else
-      echo "Exit"
-   fi
-}
+   local shard=$(whiptail --title "Network: $net" --radiolist \
+      "Choose one or all shards" 20 78 12 \
+      ${menu} \
+      "ip" "manual input IP addresses " ON 3>&1 1>&2 2>&3)
 
-function lrtn_shard_menu() {
-   local network=$1
-
-   local shard=$(whiptail --title "Network: $network" --radiolist \
-      "Choose one/all shards" 20 78 6 \
-      "lrtns0" "shard 0" OFF \
-      "lrtns1" "shard 1" OFF \
-      "lrtns2" "shard 2" OFF \
-      "lrtns3" "shard 3" OFF \
-      "lrtn" "all shards" ON \
-      "ip" "manual input IP addresses" OFF 3>&1 1>&2 2>&3)
-
-   if [ -n "$shard" ]; then
-      echo "$shard"
-   else
-      echo "Exit"
-   fi
-}
-
-function stn_shard_menu() {
-   local network=$1
-
-   local shard=$(whiptail --title "Network: $network" --radiolist \
-      "Choose one/all shards" 20 78 6 \
-      "p2ps0" "shard 0" OFF \
-      "p2ps1" "shard 1" OFF \
-      "p2p" "all shards" ON \
-      "ip" "manual input IP addresses" OFF 3>&1 1>&2 2>&3)
+   IFS="$OIFS"
 
    if [ -n "$shard" ]; then
       echo "$shard"
@@ -206,20 +214,20 @@ function do_rolling_upgrade() {
    local inv=$1
    local release=$2
 
-   ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
+   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
    whiptail --title "Notice" --msgbox "The leader won't be upgraded automatically. Please upgrade leader with force update" 8 78
 }
 
 function do_restart_shard() {
    local inv=$1
-   ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} skip_consensus_check=true"
+   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} skip_consensus_check=true"
 }
 
 function do_force_update() {
    local inv=$1
    local release=$2
 
-   ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
+   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
 }
 
 function do_menu() {
@@ -238,14 +246,7 @@ function do_menu() {
       esac
    done
 
-   case ${net} in
-      MAIN)
-         shard=$(mainnet_shard_menu "$net") ;;
-      LRTN)
-         shard=$(lrtn_shard_menu "$net") ;;
-      STN)
-         shard=$(stn_shard_menu "$net") ;;
-   esac
+   shard=$(shard_menu "$net")
 
    case ${shard} in
       Exit) exit 0 ;;
