@@ -8,6 +8,7 @@ Usage: $ME [options] [actions]
 
 Options:
    -s stride         stride for rolling upgrade (default: $STRIDE)
+   -b batch          batch of nodes for restart (default: $BATCH)
    -n network        select network for action (valid: mainnet,lrtn,stn)
    -S shard          select shard for action
    -i list_of_ip     list of IP (delimiter is ,)
@@ -17,7 +18,7 @@ Actions:
    rolling           do rolling upgrade
    restart           do restart shard/network
    update            do force update
-   menu              bring up menu (default)
+   menu              bring up menu to do operation (default)
 
 Examples:
    $ME -s 3 -n mainnet rolling
@@ -77,8 +78,8 @@ function input_ip_box() {
 # https://www.linuxjournal.com/content/validating-ip-address-bash-script
 function valid_ip()
 {
-    local  ip=$1
-    local  stat=1
+    local ip=$1
+    local stat=1
 
     if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         OIFS=$IFS
@@ -95,11 +96,11 @@ function valid_ip()
 function validate_ip_addresses() {
    OIFS=$IFS
    IFS=','
-   read -a iparr <<< "$1"
+   read -a IPARR <<< "$1"
    IFS=$OIFS
 
-   for (( n=0; n < ${#iparr[*]}; n++ )); do
-      if ! valid_ip "${iparr[$n]}"; then
+   for (( n=0; n < ${#IPARR[*]}; n++ )); do
+      if ! valid_ip "${IPARR[$n]}"; then
          return 1
       fi
    done
@@ -182,9 +183,9 @@ function release_menu() {
    local menu_tmp=/tmp/$(mktemp menu.XXXX)
 
    # assume the host has permission to list s3 bucket
-   aws s3 ls s3://pub.harmony.one/release/linux-x86_64/ | grep PRE | grep -v 'PRE v' | awk ' { print $2 } ' | sed 's,\(.*\)/,\1 \1,' | tr '\n' ' ' > $menu_tmp
+   aws s3 ls s3://pub.harmony.one/release/linux-x86_64/ | grep PRE | grep -v 'PRE v' | awk ' { print $2 } ' | sed 's,\(.*\)/,\1 \1,' | tr '\n' ' ' > "$menu_tmp"
 
-   readarray -t menus < $menu_tmp
+   readarray -t menus < "$menu_tmp"
 
    local release
    while [ -z "$release" ]; do
@@ -198,42 +199,43 @@ function release_menu() {
       esac
    done
 
-   echo "release: $release"
+   rm -f "$menu_tmp"
+   echo "$release"
 }
 
 function do_rolling_upgrade() {
-   local net=$1
-   local shard=$2
-   local ip=$3
-   echo "${net}/$shard/$ip"
-   ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f $STRIDE -e "inventory=${shard} stride=${STRIDE} upgrade=${RELEASE}"
+   local inv=$1
+   local release=$2
+
+   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
+   whiptail --title "Notice" --msgbox "The leader won't be upgraded automatically. Please upgrade leader with force update" 8 78
 }
 
 function do_restart_shard() {
-   local net=$1
-   local shard=$2
-   local ip=$3
-   echo "${net}/$shard/$ip"
+   local inv=$1
+   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} skip_consensus_check=true"
 }
 
 function do_force_update() {
-   local net=$1
-   local shard=$2
-   local ip=$3
-   echo "${net}/$shard/$ip"
+   local inv=$1
+   local release=$2
+
+   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
 }
 
 ####### default value ######
 STRIDE=2
+BATCH=60
 RELEASE=upgrade
 
-while getopts ":s:S:n:i:r:" opt; do
+while getopts ":s:S:n:i:r:b:" opt; do
    case ${opt} in
       s) STRIDE=${OPTARG} ;;
       S) shard=${OPTARG} ;;
       n) net=${OPTARG} ;;
       i) ip=${OPTARG} ;;
       r) RELEASE=${OPTARG} ;;
+      b) BATCH=${OPTARG} ;;
       *) usage ;;
    esac
 done
@@ -245,17 +247,15 @@ shift
 
 case $action in
    rolling)
-      release_menu "Network: $net"
-      do_rolling_upgrade "$net" "$shard" "$ip"
+      do_rolling_upgrade "$shard" "$RELEASE" "$ip"
       exit 0
       ;;
    restart)
-      do_restart_shard "$net" "$shard" "$ip"
+      do_restart_shard "$shard" "$ip"
       exit 0
       ;;
    update)
-      release_menu "Network: $net"
-      do_force_update "$net" "$shard" "$ip"
+      do_force_update "$shard" "$RELEASE" "$ip"
       exit 0
       ;;
    menu)
@@ -297,6 +297,7 @@ case ${shard} in
          case $ip in
             Exit) exit 0 ;;
          esac
+         ip=$(echo "$ip" | tr -d ' ')
          if validate_ip_addresses "$ip"; then
             break
          else
@@ -304,49 +305,29 @@ case ${shard} in
          fi
       done
       ;;
+   *) ip="" ;;
 esac
 
+# for rolling update or force update, get the release bucket info
 case $action in
-   Rolling) 
-      release_menu "Network: $net"
-      do_rolling_upgrade "$net" "$shard" "$ip" ;;
-   Restart)
-      do_restart_shard "$net" "$shard" "$ip" ;;
-   Update)
-      release_menu "Network: $net"
-      do_force_update "$net" "$shard" "$ip" ;;
-   *) exit ;;
+   Rolling|Update) 
+      release=$(release_menu "Network: $net") ;;
 esac
 
-exit
+if [ -z $ip ]; then
+   IPARR=( $shard )
+fi
 
-PS3="Press 4 to quit: "
-
-select opt in rolling_upgrade restart force_upgrade quit; do
-   case $opt in
-      rolling_upgrade)
-         read -p "The group (s{0..3}/s{0..3}_canary/canary): " shard
-         read -p "The release bucket: " release
-         ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f 2 -e "inventory=${shard} stride=2 upgrade=${release}"
-         echo "NOTED: the leader won't be upgraded. Please upgrade leader with force_update=true"
-         ;;
-      restart)
-         read -p "The node group or node IP: " shard
-         read -p "Number of nodes in one batch (1-50): " batch
-         read -p "Skip checking of consensus (true/false): " skip
-         ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f $batch -e "inventory=${shard} stride=${batch} skip_consensus_check=${skip}"
-         ;;
-      force_upgrade)
-         read -p "The group (s{0..3}/s{0..3}_canary/canary): " shard
-         read -p "The release bucket: " release
-         # force upgrade and no consensus check
-         ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f 50 -e "inventory=${shard} stride=50 upgrade=${release} force_update=true skip_consensus_check=true"
-         ;;
-      quit)
-         break
-         ;;
+# do action per ip or per group
+for (( n=0; n < ${#IPARR[*]}; n++ )); do
+   case $action in
+      Rolling)
+         do_rolling_upgrade "${IPARR[$n]}" "$release" ;;
+      Restart)
+         do_restart_shard "${IPARR[$n]}" ;;
+      Update)
+         do_force_update "${IPARR[$n]}" "$release" ;;
       *)
-         echo "Invalid option: $REPLY"
-         ;;
+         exit 0
    esac
 done
