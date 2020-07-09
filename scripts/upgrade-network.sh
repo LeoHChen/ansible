@@ -39,6 +39,7 @@ Options:
    -S shard          select shard for action
    -i list_of_ip     list of IP (delimiter is ,)
    -r release        release version for release (default: $release)
+   -n                dryrun mode
 
 Actions:
    rolling           do rolling upgrade
@@ -187,7 +188,7 @@ function input_release_box() {
 
 function release_menu() {
    local title=$1
-   local menu_tmp=/tmp/$(mktemp menu.XXXX)
+   local menu_tmp=$(mktemp menu.XXXX)
 
    # assume the host has permission to list s3 bucket
    aws s3 ls s3://pub.harmony.one/release/linux-x86_64/ | grep PRE | grep -v 'PRE v' | awk ' { print $2 } ' | sed 's,\(.*\)/,\1 \1,' | tr '\n' ' ' > "$menu_tmp"
@@ -214,20 +215,32 @@ function do_rolling_upgrade() {
    local inv=$1
    local release=$2
 
-   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
-   whiptail --title "Notice" --msgbox "The leader won't be upgraded automatically. Please upgrade leader with force update" 8 78
+   if $DRYRUN; then
+      echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
+   else
+      ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
+      whiptail --title "Notice" --msgbox "The leader won't be upgraded automatically. Please upgrade leader with force update" 8 78
+   fi
 }
 
 function do_restart_shard() {
    local inv=$1
-   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} skip_consensus_check=true"
+   if $DRYRUN; then
+      echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} skip_consensus_check=true"
+   else
+      ANSIBLE_STRATEGY=free ansible-playbook playbooks/restart-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} skip_consensus_check=true"
+   fi
 }
 
 function do_force_update() {
    local inv=$1
    local release=$2
 
-   echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
+   if $DRYRUN; then
+      echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
+   else
+      ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
+   fi
 }
 
 function do_menu() {
@@ -282,13 +295,14 @@ release=upgrade
 declare IPARR
 unset action ip
 
-while getopts ":s:S:i:r:b:" opt; do
+while getopts ":s:S:i:r:b:n" opt; do
    case ${opt} in
       s) STRIDE=${OPTARG} ;;
       S) shard=${OPTARG} ;;
       i) ip=${OPTARG} ;;
       r) release=${OPTARG} ;;
       b) BATCH=${OPTARG} ;;
+      n) DRYRUN=true ;;
       *) usage ;;
    esac
 done
