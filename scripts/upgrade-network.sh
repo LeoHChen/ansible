@@ -39,7 +39,7 @@ Options:
    -S shard          select shard for action
    -i list_of_ip     list of IP (delimiter is ,)
    -r release        release version for release (default: $release)
-   -n                dryrun mode
+   -G                not in dryrun mode (default is dryrun mode)
 
 Actions:
    rolling           do rolling upgrade
@@ -291,18 +291,19 @@ function do_menu() {
 STRIDE=2
 BATCH=60
 release=upgrade
+DRYRUN=true
 
 declare IPARR
 unset action ip
 
-while getopts ":s:S:i:r:b:n" opt; do
+while getopts ":s:S:i:r:b:G" opt; do
    case ${opt} in
       s) STRIDE=${OPTARG} ;;
       S) shard=${OPTARG} ;;
       i) ip=${OPTARG} ;;
       r) release=${OPTARG} ;;
       b) BATCH=${OPTARG} ;;
-      n) DRYRUN=true ;;
+      G) DRYRUN=false ;;
       *) usage ;;
    esac
 done
