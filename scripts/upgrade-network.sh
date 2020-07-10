@@ -219,7 +219,7 @@ function do_rolling_upgrade() {
       echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
    else
       ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$STRIDE" -e "inventory=${inv} stride=${STRIDE} upgrade=${release}"
-      whiptail --title "Notice" --msgbox "The leader won't be upgraded automatically. Please upgrade leader with force update" 8 78
+      whiptail --title "Notice" --msgbox "The leader won't be upgraded automatically.\nPlease upgrade leader with force update." 8 78
    fi
 }
 
@@ -244,7 +244,7 @@ function do_force_update() {
 }
 
 function do_menu() {
-   whiptail --title "Network Operation" --msgbox "Welcome to operation on Harmony Network!" 8 78
+   whiptail --title "Network Operation" --msgbox "Welcome to operation on Harmony Network!\nUse '-G' to do the real work!" 8 78
 
    while true; do
       net=$(network_menu)
