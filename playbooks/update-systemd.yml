@@ -1,6 +1,6 @@
 ---
 - hosts: '{{ inventory }}'
-  remote_user: '{{ user }}'
+  serial: 1
   become: True
   become_user: root
   gather_facts: yes

@@ -11,11 +11,10 @@
    
 - name: update systemd harmony.service   
   blockinfile:
-    path: "/lib/systemd/system/harmony.service"
+    path: "/etc/systemd/system/harmony.service"
     state: present
     insertafter: "^ExecStart"
     block: |
-      StandardError=file:{{ USER.home }}/harmony.err
       LimitNOFILE=65536
       LimitNPROC=65536
 
@@ -24,5 +23,9 @@
     daemon_reload: yes
     state: restarted
     name: harmony
+
+- name: wait
+  pause:
+    minutes: 3
   
 # vim: set expandtab:ts=2:ft=yaml
