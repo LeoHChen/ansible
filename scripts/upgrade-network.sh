@@ -15,6 +15,10 @@ MAIN[s1_canary]="canary nodes in mainnet shard 1"
 MAIN[s2_canary]="canary nodes in mainnet shard 2"
 MAIN[s3_canary]="canary nodes in mainnet shard 3"
 MAIN[canary]="all canary nodes in mainnet"
+MAIN[expnode]="explorer nodes in mainnet"
+MAIN[intexp]="internal explorer nodes in mainnet"
+MAIN[s0ep]="additional end point nodes of shard 0"
+MAIN[snapshot]="all snapshot nodes"
 
 declare -A LRTN
 LRTN[lrtn]="all LRTN nodes"
