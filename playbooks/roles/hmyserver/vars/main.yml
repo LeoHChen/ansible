@@ -3,6 +3,8 @@ PACKAGES:
    - jq
    - git
    - tmux
+   - dpkg
+   - rpm-build
 
 USER:
    user: ec2-user
