@@ -1,0 +1,31 @@
+---
+- hosts: '{{ inventory }}'
+  gather_facts: yes
+  vars:
+    max_days: '7'
+
+  tasks:
+    - name: gather Cloud/OS specific variables
+      include_vars: '{{ item }}'
+      with_first_found:
+        - '{{ ansible_bios_version }}-{{ ansible_distribution }}.yml'
+        - '{{ cloud_platform }}-{{ ansible_distribution }}.yml'
+
+    - name: setup cron task for cleanup log
+      cron:
+        name: cleanup node log
+        job: 'find {{ USER.home }}/latest -name "*.gz" -mtime +{{ max_days }} -type f -exec rm -f {} \;'
+        minute: '0'
+        hour: '0'
+        day: '*'
+        month: '*'
+        weekday: '0'
+      when: cloud_platform != 'Google'
+
+    - name: replace crontab task in GCP
+      become: true
+      lineinfile:
+        dest: /var/spool/cron/gce-user
+        regexp: "rm -f latest"
+        line: '0 0 * * * find {{ USER.home }}/latest -name "*.gz" -mtime +{{ max_days }} -type f -exec rm -f {} \;'
+      when: cloud_platform == 'Google'
