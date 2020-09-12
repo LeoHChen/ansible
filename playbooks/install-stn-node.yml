@@ -1,0 +1,44 @@
+---
+- hosts: '{{ inventory }}'
+  gather_facts: yes
+  become: true
+
+  tasks:
+  - name: install required packages on node
+    command: 'snap install {{ item }}'
+    with_items:
+      - jq
+
+  - name: install harmony binary
+    get_url: 
+      url: "https://s3-us-west-1.amazonaws.com/pub.harmony.one/release/linux-x86_64/{{ bucket }}/static/harmony"
+      dest: /usr/sbin/harmony
+      mode: '0755'
+
+  - name: install harmony.service
+    copy:
+      src: harmony.service
+      dest: /etc/systemd/system/harmony.service
+
+  - name: create /etc/harmony
+    file:
+      path: /etc/harmony
+      state: directory
+      owner: ubuntu
+      group: ubuntu
+      mode: '0755'
+
+  - name: install harmony.conf
+    copy:
+      src: harmony.conf
+      dest: /etc/harmony/harmony.conf
+      owner: ubuntu
+      group: ubuntu
+      mode: '0644'
+
+  - name: install blskeys
+    copy:
+      src: "keys/{{ host }}/blskeys/"
+      dest: "/home/{{ ansible_user }}/.hmy/blskeys/"
+      owner: ubuntu
+      group: ubuntu
