@@ -1,0 +1,12 @@
+---
+- hosts: '{{ inventory }}'
+  gather_facts: no
+  become: true
+
+  tasks:
+  - name: install harmony binary
+    get_url: 
+      url: "https://s3-us-west-1.amazonaws.com/pub.harmony.one/release/linux-x86_64/{{ bucket }}/static/harmony"
+      dest: /usr/sbin/harmony
+      mode: '0755'
+      force: yes
