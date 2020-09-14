@@ -5,6 +5,9 @@ PACKAGES:
    - tmux
    - dpkg
    - rpm-build
+   - rpm-sign
+   - createrepo
+   - gpg
 
 USER:
    user: ec2-user

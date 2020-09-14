@@ -29,4 +29,19 @@
     name: nodejs
     state: present
 
+- name: download aptly package
+  get_url:
+    url: 'https://github.com/aptly-dev/aptly/releases/download/v{{ aptly_version }}/aptly_{{ aptly_version }}_linux_amd64.tar.gz'
+    dest: "{{ USER.home }}"
+
+- name: untar aptly package
+  unarchive:
+    copy: no
+    src: "{{ USER.home }}/aptly_{{ aptly_version }}_linux_amd64.tar.gz"
+    dest: "{{ USER.home }}"
+
+- name: install aptly
+  become: true
+  command: install -m 0755 {{ USER.home }}/aptly_{{ aptly_version }}_linux_amd64/aptly /usr/local/bin
+
 # vim: set expandtab:ts=2
