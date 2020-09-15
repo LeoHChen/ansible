@@ -4,9 +4,19 @@
   become: true
 
   tasks:
-  - name: install harmony binary
+  - name: "stop harmony service"
+    systemd:
+      name: harmony
+      state: stopped
+
+  - name: "install harmony binary"
     get_url: 
       url: "https://s3-us-west-1.amazonaws.com/pub.harmony.one/release/linux-x86_64/{{ bucket }}/static/harmony"
       dest: /usr/sbin/harmony
       mode: '0755'
       force: yes
+
+  - name: "restart harmony service"
+    systemd:
+      name: harmony
+      state: started
