@@ -157,7 +157,11 @@ function shard_menu() {
 
    case ${net} in
       MAIN)
-         for i in ${!MAIN[@]}; do
+         sorted=()
+         while IFS= read -rd '' key; do
+            sorted+=( "$key" )
+         done < <(printf '%s\0' "${!MAIN[@]}" | sort -z)
+         for i in "${sorted[@]}"; do
             menu+="$i/${MAIN[$i]}/OFF/"
          done ;;
       LRTN)
