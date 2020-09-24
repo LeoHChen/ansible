@@ -15,5 +15,6 @@
     ignore_errors: yes
     fetch:
       src: "{{ USER.home }}/latest/zerolog-validator-{{ ansible_host }}-9000.log"
-      dest: ~/tmp/logs
+      dest: /tmp/logs/
       flat: yes
+      validate_checksum: no

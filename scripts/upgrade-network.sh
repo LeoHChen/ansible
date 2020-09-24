@@ -47,6 +47,7 @@ Options:
    -S shard          select shard for action
    -i list_of_ip     list of IP (delimiter is ,)
    -r release        release version for release (default: $release)
+   -t seconds        sleep seconds between each force update (default: $SLEEP)
    -G                not in dryrun mode (default is dryrun mode)
 
 Actions:
@@ -252,6 +253,7 @@ function do_force_update() {
       echo ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
    else
       ANSIBLE_STRATEGY=free ansible-playbook playbooks/upgrade-node.yml -f "$BATCH" -e "inventory=${inv} stride=${BATCH} upgrade=${release} force_update=true skip_consensus_check=true"
+      sleep $SLEEP
    fi
 }
 
@@ -304,11 +306,12 @@ STRIDE=2
 BATCH=60
 release=upgrade
 DRYRUN=true
+SLEEP=5
 
 declare IPARR
 unset action ip
 
-while getopts ":s:S:i:r:b:G" opt; do
+while getopts ":s:S:i:r:b:Gt:" opt; do
    case ${opt} in
       s) STRIDE=${OPTARG} ;;
       S) shard=${OPTARG} ;;
@@ -316,6 +319,7 @@ while getopts ":s:S:i:r:b:G" opt; do
       r) release=${OPTARG} ;;
       b) BATCH=${OPTARG} ;;
       G) DRYRUN=false ;;
+      t) SLEEP=${OPTARG} ;;
       *) usage ;;
    esac
 done
