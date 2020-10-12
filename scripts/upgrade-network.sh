@@ -20,8 +20,6 @@ MAIN[s1exp]="explorer nodes in mainnet shard 1"
 MAIN[s2exp]="explorer nodes in mainnet shard 2"
 MAIN[s3exp]="explorer nodes in mainnet shard 3"
 MAIN[expnode]="explorer nodes in mainnet"
-MAIN[intexp]="internal explorer nodes in mainnet"
-MAIN[s0ep]="additional end point nodes of shard 0"
 MAIN[snapshot]="all snapshot nodes"
 
 declare -A LRTN
