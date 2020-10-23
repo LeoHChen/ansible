@@ -1,0 +1,69 @@
+---
+- hosts: '{{ inventory }}'
+  gather_facts: yes
+  vars:
+    - node_type: 'Validator'
+    - explorer_shard_index: 0
+
+  tasks:
+    - name: gather OS specific variables
+      include_vars: '{{ item }}'
+      with_first_found:
+        - '{{ ansible_bios_version }}-{{ ansible_distribution }}.yml'
+        - '{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml'
+        - '{{ ansible_distribution }}.yml'
+        - '{{ ansible_os_family }}.yml'
+        - '{{ cloud_platform }}-{{ ansible_distribution }}.yml'
+
+    - name: stop harmony service
+      become: true
+      systemd:
+        name: harmony
+        state: stopped
+
+    - name: copy harmony binary service file for validator node on AWS
+      become: true
+      template:
+         src: harmony.binary.service.j2
+         dest: '/etc/systemd/system/harmony.service'
+         force: yes
+      when: cloud_platform == 'Amazone' and node_type == 'Validator'
+
+    - name: copy harmony binary service file for explorer node on AWS
+      become: true
+      template:
+         src: harmony.binary.service.j2
+         dest: '/usr/lib/systemd/system/harmony.service'
+         force: yes
+      when: cloud_platform == 'Amazone' and node_type == 'Explorer'
+
+    - name: copy harmony binary service file on GCP
+      become: true
+      template:
+         src: harmony.binary.service.j2
+         dest: '/lib/systemd/system/harmony.service'
+         force: yes
+      when: cloud_platform == 'Google'
+
+    - name: start harmony service
+      become: true
+      systemd: 
+        name: harmony
+        daemon_reload: yes
+        enabled: yes
+        state: started
+
+    - name: wait harmony started succeed
+      wait_for:
+        host: '0.0.0.0'
+        port: 6000
+        delay: 20
+        state: started
+
+    - name: get service status
+      shell: 'systemctl status harmony.service'
+      register: result
+
+    - name: print result
+      debug:
+        var: result.stdout
