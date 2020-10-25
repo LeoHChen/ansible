@@ -3,18 +3,10 @@
   gather_facts: yes
 
   tasks:
-  - name: gather OS specific variables
-    include_vars: "{{ item }}"
-    with_first_found:
-      - '{{ ansible_bios_version }}-{{ ansible_distribution }}.yml'
-      - '{{ cloud_platform }}-{{ ansible_distribution }}.yml'
-    tags:
-      - vars
-
   - name: fetch log
     ignore_errors: yes
     fetch:
-      src: "{{ USER.home }}/latest/zerolog-validator-{{ ansible_host }}-9000.log"
-      dest: /tmp/logs/
+      src: "/home/{{ ansible_user }}/latest/zerolog-harmony.log"
+      dest: "/tmp/logs/{{ host }}.log"
       flat: yes
       validate_checksum: no
