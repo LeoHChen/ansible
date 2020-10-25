@@ -16,6 +16,9 @@
       mode: '0755'
       force: yes
 
+  - name: "archive harmony log"
+    command: mv /home/ubuntu/latest/zerolog-harmony.log /home/ubuntu/latest/zerolog-harmony.log.bak
+
   - name: "restart harmony service"
     systemd:
       name: harmony
