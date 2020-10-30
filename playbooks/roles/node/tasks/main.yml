@@ -23,11 +23,28 @@
     dest: '{{ USER.home }}/hmy'
     mode: '0755'
 
-- name: download node.sh 
+- name: download node.sh
   get_url: 
-    url: https://raw.githubusercontent.com/harmony-one/harmony/master/scripts/node.sh
+    url: https://raw.githubusercontent.com/harmony-one/harmony/main/scripts/node.sh
     dest: '{{ USER.home }}/node.sh'
     mode: '0755'
+
+- name: create .config/rclone directory
+  file:
+    path: "{{ USER.home }}/.config/rclone"
+    state: directory
+
+- name: download rclone.sh
+  get_url: 
+    url: https://raw.githubusercontent.com/harmony-one/terraform/master/aws.1/files/rclone.sh
+    dest: '{{ USER.home }}/rclone.sh'
+    mode: '0755'
+
+- name: download rclone.conf
+  get_url:
+    url: https://raw.githubusercontent.com/harmony-one/terraform/master/aws.1/files/rclone.conf
+    dest: '{{ USER.home }}/.config/rclone/rclone.conf'
+    mode: '0644'
 
 - name: get node.sh version
   shell: '{{ USER.home }}/node.sh -v'
@@ -40,18 +57,20 @@
 - name: clean up legacy
   ignore_errors: yes
   file:
-    path: "{{ item }}"
+    path: "{{ USER.home }}/{{ item }}"
     state: absent
   with_items:
     - latest
     - staging
-    - .hmy
+    - install-rclone.sh
+    - node.err
+    - node.log
 
 - name: download harmony binaries
   shell: "{{ USER.home }}/node.sh -N {{ network }} -d && mv -f staging/harmony {{ USER.home }} > node.log 2> node.err"
 
 - name: get harmony version
-  shell: "{{ USER.home }}/node.sh -V"
+  shell: "{{ USER.home }}/harmony --version"
   register: Ver
 
 - name: print harmony version
@@ -65,7 +84,7 @@
 
 - name: copy all bls keys and pass for validator node
   copy:
-    src: "{{ inventory_hostname }}/"
+    src: "{{ host }}/"
     dest: "{{ USER.home }}/.hmy/blskeys/"
   when: node_type_var != 'Explorer'
 
@@ -83,7 +102,7 @@
    - name: copy harmony service file
      template:
        src: harmony.service.j2
-       dest: "/lib/systemd/system/harmony.service"
+       dest: "/etc/systemd/system/harmony.service"
        backup: yes
        force: yes
 
@@ -100,3 +119,29 @@
        state: started
   become: true
   become_user: root
+
+- name: tasks for Validator
+  block:
+   - name: create db directory
+     file:
+       path: "{{ USER.home }}/harmony_db_{{ shard }}"
+       state: directory
+
+   - name: install rclone 1
+     get_url:
+       url: https://rclone.org/install.sh
+       dest: '{{ USER.home }}/install-rclone.sh'
+       mode: '0755'
+
+   - name: install rclone 2
+     command:
+        cmd: "{{ USER.home }}/install-rclone.sh"
+     ignore_errors: yes
+     become: true
+
+   - name: run rclone
+     command:
+       cmd: "{{ USER.home }}/rclone.sh mainnet.min"
+       chdir: "{{ USER.home }}/"
+     ignore_errors: yes
+  when: node_type_var != 'Explorer' and do_rclone == 'true'

@@ -4,5 +4,6 @@
   gather_facts: yes
   vars:
     - node_type_var: "{{ node_type | default('Validator') }}"
+    - do_rclone : "{{ rclone | default('true') }}"
   roles:
     - { role: node, network: mainnet }
