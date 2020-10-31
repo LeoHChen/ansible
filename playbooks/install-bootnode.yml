@@ -1,0 +1,30 @@
+---
+- hosts: '{{ inventory }}'
+  gather_facts: yes
+  become: true
+
+  tasks:
+  - name: install harmony bootnode 
+    get_url: 
+      url: "https://s3-us-west-1.amazonaws.com/pub.harmony.one/release/linux-x86_64/main_v2/static/bootnode"
+      dest: /usr/sbin/bootnode
+      mode: '0755'
+
+  - name: install bootnode.service
+    template:
+      src: bootnode.service.j2
+      dest: "/etc/systemd/system/bootnode.service"
+      backup: yes
+      force: yes
+
+  - name: install bootnode key 
+    copy:
+      src: "bnkeys/{{ key }}"
+      dest: "/home/{{ ansible_user }}/{{ key }}"
+
+  - name: enable bootnode service
+    systemd: 
+      name: bootnode
+      daemon_reload: yes
+      enabled: yes
+      state: started
