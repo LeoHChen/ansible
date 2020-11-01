@@ -1,0 +1,19 @@
+---
+- hosts: '{{ inventory }}'
+  
+  roles:
+  - role: geerlingguy.docker
+    become: yes
+
+  tasks:
+  - name: install required packages on node using apt
+    become: true
+    apt:
+      name: python3-pip
+      state: present
+      update_cache: yes
+    
+  - name: install docker python packages for ansible manage docker
+    become: yes
+    pip:
+      name: docker
