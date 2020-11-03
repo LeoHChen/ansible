@@ -62,6 +62,7 @@
   with_items:
     - latest
     - staging
+    - .hmy/blskeys
     - install-rclone.sh
     - node.err
     - node.log

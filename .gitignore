@@ -4,3 +4,4 @@ explorer.env
 *.test.hosts
 *.node.hosts
 /playbooks/roles/explorer_be/files/mainnet
+playbooks/roles/node/files/s*
