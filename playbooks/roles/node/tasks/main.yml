@@ -60,12 +60,17 @@
     path: "{{ USER.home }}/{{ item }}"
     state: absent
   with_items:
+    - .hmy/blskeys
     - latest
     - staging
-    - .hmy/blskeys
     - install-rclone.sh
     - node.err
     - node.log
+
+- name: do fresh start
+  ignore_errors: yes
+  shell: rm -rf harmony_db_*
+  when: do_fresh == 'true'
 
 - name: download harmony binaries
   shell: "{{ USER.home }}/node.sh -N {{ network }} -d && mv -f staging/harmony {{ USER.home }} > node.log 2> node.err"
@@ -76,7 +81,7 @@
 
 - name: print harmony version
   debug:
-    var: Ver.stderr
+    var: Ver.stdout
 
 - name: create .hmy/blskeys directory
   file:
@@ -117,7 +122,7 @@
        name: harmony
        daemon_reload: yes
        enabled: yes
-       state: started
+       state: restarted
   become: true
   become_user: root
 
