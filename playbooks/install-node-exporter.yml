@@ -1,6 +1,6 @@
 ---
 - hosts: '{{ inventory }}'
-  remote_user: '{{ user }}'
+  remote_user: '{{ ansible_user }}'
   gather_facts: yes
   roles:
     - node_exporter
