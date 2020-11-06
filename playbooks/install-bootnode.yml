@@ -13,7 +13,7 @@
   - name: install bootnode.service
     template:
       src: bootnode.service.j2
-      dest: "/etc/systemd/system/bootnode.service"
+      dest: "/etc/systemd/system/bootnode.{{ port }}.service"
       backup: yes
       force: yes
 
@@ -24,7 +24,7 @@
 
   - name: enable bootnode service
     systemd: 
-      name: bootnode
+      name: "bootnode.{{ port }}"
       daemon_reload: yes
       enabled: yes
       state: restarted
