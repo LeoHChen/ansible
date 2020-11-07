@@ -29,11 +29,6 @@ LRTN[lrtns1]="all nodes in LRTN shard 1"
 LRTN[lrtns2]="all nodes in LRTN shard 2"
 LRTN[lrtns3]="all nodes in LRTN shard 3"
 
-declare -A STN
-STN[p2p]="all STN nodes"
-STN[p2ps0]="all nodes in STN shard 0"
-STN[p2ps1]="all nodes in STN shard 1"
-
 ######################## Functions ##########################
 function usage() {
    cat<<-EOT
@@ -66,8 +61,7 @@ function network_menu() {
    local network=$(whiptail --title "Network Operation" --menu \
       "Choose a network" 25 78 16 \
       "MAIN" "Harmony Mainnet" \
-      "LRTN" "Long Running Test Net" \
-      "STN" "P2P Stress Test Net" 3>&1 1>&2 2>&3)
+      "LRTN" "Long Running Test Net" 3>&1 1>&2 2>&3)
 
    if [ -n "$network" ]; then
       echo "$network"
@@ -166,10 +160,6 @@ function shard_menu() {
       LRTN)
          for i in ${!LRTN[@]}; do
             menu+="$i/${LRTN[$i]}/OFF/"
-         done ;;
-      STN)
-         for i in ${!STN[@]}; do
-            menu+="$i/${STN[$i]}/OFF/"
          done ;;
    esac
 
